@@ -1,8 +1,16 @@
-// Package union provides a generic tagged union (discriminated union) implementation
-// for Go with JSON marshaling and unmarshaling support.
+// Package union provides generic union type implementations for Go with JSON
+// marshaling and unmarshaling support.
 //
-// A tagged union allows you to represent a value that can be one of several types,
-// with a variant field that indicates which type is currently active.
+// This package offers two union types:
+//
+//   - TaggedUnion: A discriminated union with explicit variant/value wrapper
+//   - Union: An untagged union that marshals data directly
+//
+// # TaggedUnion
+//
+// TaggedUnion represents a discriminated union where the JSON representation
+// includes a variant field indicating which type is active and a value field
+// containing the data.
 //
 // Example usage:
 //
@@ -15,7 +23,7 @@
 //	var shape union.TaggedUnion[Shape]
 //	shape.Value.Circle = &Circle{Radius: 5.0}
 //
-//	// Marshals to: {"type": "circle", "value": {"Radius": 5.0}}
+//	// Marshals to: {"type": "circle", "value": {"radius": 5.0}}
 //	data, _ := json.Marshal(shape)
 //
 // The `variant` struct tag specifies the variant name in JSON. If no tag is provided,
@@ -28,6 +36,30 @@
 //	}
 //
 //	// Marshals to: {"kind": "circle", "data": {...}}
+//
+// # Union
+//
+// Union represents an untagged union where the JSON representation is the data
+// itself, without any wrapper. When unmarshaling, each field is tried in order
+// until one successfully deserializes to a non-zero value.
+//
+// Example usage:
+//
+//	type Shape struct {
+//	    Circle    *Circle
+//	    Rectangle *Rectangle
+//	    Triangle  *Triangle
+//	}
+//
+//	var shape union.Union[Shape]
+//	shape.Value.Circle = &Circle{Radius: 5.0}
+//
+//	// Marshals to: {"radius": 5.0}
+//	data, _ := json.Marshal(shape)
+//
+//	// Unmarshaling tries each field until one produces a non-zero value
+//	_ = json.Unmarshal([]byte(`{"width": 10, "height": 5}`), &shape)
+//	// shape.Value.Rectangle will be set
 package union
 
 import (

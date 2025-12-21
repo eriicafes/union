@@ -6,57 +6,23 @@ import (
 	"testing"
 )
 
-type (
-	Circle struct {
-		Radius float64 `json:"radius"`
-	}
-	Rectangle struct {
-		Width  float64 `json:"width"`
-		Height float64 `json:"height"`
-	}
-	Triangle struct {
-		Base   float64 `json:"base"`
-		Height float64 `json:"height"`
-	}
-)
-
-type Shape struct {
-	Circle    *Circle    `variant:"circle"`
-	Rectangle *Rectangle `variant:"rectangle"`
-	Triangle  *Triangle  `variant:"triangle"`
-}
-
-type CustomFieldNamesShape struct {
-	Circle    *Circle    `variant:"circle"`
-	Rectangle *Rectangle `variant:"rectangle"`
-}
-
-func (s CustomFieldNamesShape) TaggedFieldNames() (variant, value string) {
-	return "kind", "data"
-}
-
-type NonPointerShape struct {
-	Circle    Circle    `variant:"circle"`
-	Rectangle Rectangle `variant:"rectangle"`
-}
-
-type NonStructTagsShape struct {
+type UnionShape struct {
 	Circle    *Circle
 	Rectangle *Rectangle
 	Triangle  *Triangle
 }
 
-type EmptyShape struct {
+type UnionNonPointerShape struct {
+	Circle    Circle
+	Rectangle Rectangle
 }
 
-type NonStructType int
-
-type DuplicateVariantShape struct {
-	Circle1 *Circle `variant:"circle"`
-	Circle2 *Circle `variant:"circle"`
+type UnionEmptyShape struct {
 }
 
-func TestGetValue(t *testing.T) {
+type UnionNonStructType int
+
+func TestUnionGetValue(t *testing.T) {
 	tests := []struct {
 		name     string
 		shape    interface{ GetValue() any }
@@ -64,8 +30,8 @@ func TestGetValue(t *testing.T) {
 	}{
 		{
 			name: "returns circle variant",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Circle: &Circle{Radius: 5.0},
 				},
 			},
@@ -73,8 +39,8 @@ func TestGetValue(t *testing.T) {
 		},
 		{
 			name: "returns rectangle variant",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Rectangle: &Rectangle{Width: 10, Height: 5},
 				},
 			},
@@ -82,8 +48,8 @@ func TestGetValue(t *testing.T) {
 		},
 		{
 			name: "returns triangle variant",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Triangle: &Triangle{Base: 8, Height: 4},
 				},
 			},
@@ -91,13 +57,13 @@ func TestGetValue(t *testing.T) {
 		},
 		{
 			name:     "returns nil when no variant is set",
-			shape:    TaggedUnion[Shape]{},
+			shape:    Union[UnionShape]{},
 			expected: nil,
 		},
 		{
 			name: "returns nil when multiple variants are set",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Circle:    &Circle{Radius: 5.0},
 					Rectangle: &Rectangle{Width: 10, Height: 5},
 				},
@@ -106,7 +72,7 @@ func TestGetValue(t *testing.T) {
 		},
 		{
 			name:     "returns nil for non-struct type",
-			shape:    TaggedUnion[NonStructType]{},
+			shape:    Union[NonStructType]{},
 			expected: nil,
 		},
 	}
@@ -114,12 +80,12 @@ func TestGetValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value := tt.shape.GetValue()
-			assertValueEquals(t, value, tt.expected)
+			assertUnionValueEquals(t, value, tt.expected)
 		})
 	}
 }
 
-func TestMarshalJSON(t *testing.T) {
+func TestUnionMarshalJSON(t *testing.T) {
 	tests := []struct {
 		name        string
 		shape       any
@@ -129,41 +95,41 @@ func TestMarshalJSON(t *testing.T) {
 	}{
 		{
 			name: "marshals circle variant",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Circle: &Circle{Radius: 5.0},
 				},
 			},
-			expected: `{"type":"circle","value":{"radius":5}}`,
+			expected: `{"radius":5}`,
 		},
 		{
 			name: "marshals rectangle variant",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Rectangle: &Rectangle{Width: 10, Height: 5},
 				},
 			},
-			expected: `{"type":"rectangle","value":{"width":10,"height":5}}`,
+			expected: `{"width":10,"height":5}`,
 		},
 		{
 			name: "marshals triangle variant",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Triangle: &Triangle{Base: 8, Height: 4},
 				},
 			},
-			expected: `{"type":"triangle","value":{"base":8,"height":4}}`,
+			expected: `{"base":8,"height":4}`,
 		},
 		{
 			name:        "returns error when no variant is set",
-			shape:       TaggedUnion[Shape]{},
+			shape:       Union[UnionShape]{},
 			expectErr:   true,
 			expectedErr: "zero variants set",
 		},
 		{
 			name: "returns error when multiple variants are set",
-			shape: TaggedUnion[Shape]{
-				Value: Shape{
+			shape: Union[UnionShape]{
+				Value: UnionShape{
 					Circle:    &Circle{Radius: 5.0},
 					Rectangle: &Rectangle{Width: 10, Height: 5},
 				},
@@ -172,41 +138,23 @@ func TestMarshalJSON(t *testing.T) {
 			expectedErr: "multiple variants set",
 		},
 		{
-			name: "marshals with custom field names",
-			shape: TaggedUnion[CustomFieldNamesShape]{
-				Value: CustomFieldNamesShape{
-					Circle: &Circle{Radius: 5.0},
-				},
-			},
-			expected: `{"data":{"radius":5},"kind":"circle"}`,
-		},
-		{
 			name: "marshals non-pointer variant",
-			shape: TaggedUnion[NonPointerShape]{
-				Value: NonPointerShape{
+			shape: Union[UnionNonPointerShape]{
+				Value: UnionNonPointerShape{
 					Circle: Circle{Radius: 5.0},
 				},
 			},
-			expected: `{"type":"circle","value":{"radius":5}}`,
-		},
-		{
-			name: "marshals without struct tags",
-			shape: TaggedUnion[NonStructTagsShape]{
-				Value: NonStructTagsShape{
-					Circle: &Circle{Radius: 5.0},
-				},
-			},
-			expected: `{"type":"Circle","value":{"radius":5}}`,
+			expected: `{"radius":5}`,
 		},
 		{
 			name:        "returns error for struct with no variants",
-			shape:       TaggedUnion[EmptyShape]{},
+			shape:       Union[UnionEmptyShape]{},
 			expectErr:   true,
 			expectedErr: "zero variants set",
 		},
 		{
 			name:        "returns error for non-struct type",
-			shape:       TaggedUnion[NonStructType]{},
+			shape:       Union[UnionNonStructType]{},
 			expectErr:   true,
 			expectedErr: "spec must be a struct",
 		},
@@ -237,7 +185,7 @@ func TestMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestUnmarshalJSON(t *testing.T) {
+func TestUnionUnmarshalJSON(t *testing.T) {
 	tests := []struct {
 		name        string
 		shape       interface{ GetValue() any }
@@ -248,118 +196,85 @@ func TestUnmarshalJSON(t *testing.T) {
 	}{
 		{
 			name:     "unmarshals circle variant",
-			shape:    &TaggedUnion[Shape]{},
-			jsonData: `{"type":"circle","value":{"radius":5}}`,
+			shape:    &Union[UnionShape]{},
+			jsonData: `{"radius":5}`,
 			expected: Circle{Radius: 5.0},
 		},
 		{
 			name:     "unmarshals rectangle variant",
-			shape:    &TaggedUnion[Shape]{},
-			jsonData: `{"type":"rectangle","value":{"width":10,"height":5}}`,
+			shape:    &Union[UnionShape]{},
+			jsonData: `{"width":10,"height":5}`,
 			expected: Rectangle{Width: 10, Height: 5},
 		},
 		{
 			name:     "unmarshals triangle variant",
-			shape:    &TaggedUnion[Shape]{},
-			jsonData: `{"type":"triangle","value":{"base":8,"height":4}}`,
+			shape:    &Union[UnionShape]{},
+			jsonData: `{"base":8,"height":4}`,
 			expected: Triangle{Base: 8, Height: 4},
 		},
 		{
-			name:        "returns error for unknown variant",
-			shape:       &TaggedUnion[Shape]{},
-			jsonData:    `{"type":"hexagon","value":{"sides":6}}`,
+			name:        "returns error when no field matches",
+			shape:       &Union[UnionShape]{},
+			jsonData:    `{"sides":6}`,
 			expectErr:   true,
-			expectedErr: "unknown variant: hexagon",
-		},
-		{
-			name:        "returns error for missing variant field",
-			shape:       &TaggedUnion[Shape]{},
-			jsonData:    `{"value":{"Radius":5}}`,
-			expectErr:   true,
-			expectedErr: "missing variant field: type",
-		},
-		{
-			name:        "returns error for missing value field",
-			shape:       &TaggedUnion[Shape]{},
-			jsonData:    `{"type":"circle"}`,
-			expectErr:   true,
-			expectedErr: "missing value field: value",
+			expectedErr: "no field matched",
 		},
 		{
 			name:      "returns error for malformed JSON",
-			shape:     &TaggedUnion[Shape]{},
+			shape:     &Union[UnionShape]{},
 			jsonData:  `{invalid json}`,
 			expectErr: true,
 		},
 		{
-			name:     "unmarshals with custom field names",
-			shape:    &TaggedUnion[CustomFieldNamesShape]{},
-			jsonData: `{"kind":"circle","data":{"radius":5}}`,
-			expected: Circle{Radius: 5.0},
-		},
-		{
 			name:     "unmarshals non-pointer variant",
-			shape:    &TaggedUnion[NonPointerShape]{},
-			jsonData: `{"type":"circle","value":{"radius":5}}`,
-			expected: Circle{Radius: 5.0},
-		},
-		{
-			name:     "unmarshals without struct tags",
-			shape:    &TaggedUnion[NonStructTagsShape]{},
-			jsonData: `{"type":"Circle","value":{"radius":5}}`,
+			shape:    &Union[UnionNonPointerShape]{},
+			jsonData: `{"radius":5}`,
 			expected: Circle{Radius: 5.0},
 		},
 		{
 			name:        "returns error for struct with no variants",
-			shape:       &TaggedUnion[EmptyShape]{},
-			jsonData:    `{"type":"circle","value":{"radius":5}}`,
+			shape:       &Union[UnionEmptyShape]{},
+			jsonData:    `{"radius":5}`,
 			expectErr:   true,
-			expectedErr: "unknown variant: circle",
+			expectedErr: "no field matched",
 		},
 		{
 			name:        "returns error for non-struct type",
-			shape:       &TaggedUnion[NonStructType]{},
-			jsonData:    `{"type":"int","value":42}`,
+			shape:       &Union[UnionNonStructType]{},
+			jsonData:    `42`,
 			expectErr:   true,
 			expectedErr: "spec must be a struct",
 		},
 		{
+			name:     "matches first non-zero field in order",
+			shape:    &Union[UnionShape]{},
+			jsonData: `{"height":10}`,
+			expected: Rectangle{Width: 0, Height: 10},
+		},
+		{
 			name:      "returns error when JSON is array",
-			shape:     &TaggedUnion[Shape]{},
+			shape:     &Union[UnionShape]{},
 			jsonData:  `[1, 2, 3]`,
 			expectErr: true,
 		},
 		{
 			name:      "returns error when JSON is string",
-			shape:     &TaggedUnion[Shape]{},
+			shape:     &Union[UnionShape]{},
 			jsonData:  `"hello"`,
 			expectErr: true,
 		},
 		{
 			name:      "returns error when JSON is number",
-			shape:     &TaggedUnion[Shape]{},
+			shape:     &Union[UnionShape]{},
 			jsonData:  `123`,
 			expectErr: true,
 		},
 		{
-			name:        "returns error when variant field is not a string",
-			shape:       &TaggedUnion[Shape]{},
-			jsonData:    `{"type":123,"value":{"radius":5}}`,
+			name:        "returns error when value cannot be unmarshaled",
+			shape:       &Union[UnionShape]{},
+			jsonData:    `{"radius":"not a number"}`,
 			expectErr:   true,
-			expectedErr: "json: cannot unmarshal number into Go value of type string",
-		},
-		{
-			name:      "returns error when value cannot be unmarshaled",
-			shape:     &TaggedUnion[Shape]{},
-			jsonData:  `{"type":"circle","value":"not an object"}`,
-			expectErr: true,
-		},
-		{
-			name:        "returns error for duplicate variant tags",
-			shape:       &TaggedUnion[DuplicateVariantShape]{},
-			jsonData:    `{"type":"circle","value":{"radius":5}}`,
-			expectErr:   true,
-			expectedErr: "multiple fields matched",
+			expectedErr: "no field matched",
 		},
 	}
 
@@ -382,14 +297,14 @@ func TestUnmarshalJSON(t *testing.T) {
 			}
 
 			value := tt.shape.GetValue()
-			assertValueEquals(t, value, tt.expected)
+			assertUnionValueEquals(t, value, tt.expected)
 		})
 	}
 }
 
-// assertValueEquals compares a value from GetValue() with an expected value type.
+// assertUnionValueEquals compares a value from GetValue() with an expected value type.
 // It handles pointer dereferencing and type assertions for Circle, Rectangle, and Triangle.
-func assertValueEquals(t *testing.T, value, expected any) {
+func assertUnionValueEquals(t *testing.T, value, expected any) {
 	t.Helper()
 
 	if expected == nil {
