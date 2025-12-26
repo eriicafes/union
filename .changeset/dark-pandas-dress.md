@@ -1,5 +1,0 @@
----
-"union": minor
----
-
-Bump version
