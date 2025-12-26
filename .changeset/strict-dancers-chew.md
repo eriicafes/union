@@ -1,5 +1,0 @@
----
-"union": minor
----
-
-Initial release
