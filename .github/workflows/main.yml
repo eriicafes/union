@@ -36,10 +36,12 @@ jobs:
 
       - run: npm ci
 
-      - name: Create Release or Release Pull Request
+      - name: Create Release Pull Request
         id: changesets
         uses: changesets/action@v1
-        with:
-          publish: sh publish.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Release
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: sh publish.sh
