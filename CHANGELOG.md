@@ -1,5 +1,12 @@
 # union
 
+## 0.4.0
+
+### Minor Changes
+
+- ea98af7: Bump version
+- ce51c99: Bump version
+
 ## 0.3.0
 
 ### Minor Changes
