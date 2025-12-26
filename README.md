@@ -85,14 +85,26 @@ json.Unmarshal(jsonData, &shape)
 
 ### Custom field names
 
-Implement the `TaggedFieldNames` method to customize the JSON field names.
+Implement `JSONDiscriminator() (string, string)` to customize the variant and value field names.
 
 ```go
-func (s Shape) TaggedFieldNames() (variant, value string) {
+func (s Shape) JSONDiscriminator() (string, string) {
     return "kind", "data"
 }
 
-// Marshals to: {"kind": "circle", "data": {...}}
+// {"kind": "circle", "data": {"radius": 5}}
+```
+
+### Flat representation
+
+Implement `JSONDiscriminator() string` to merge the active variant's fields directly into the top-level JSON object alongside the discriminator.
+
+```go
+func (s Shape) JSONDiscriminator() string {
+    return "type"
+}
+
+// {"type": "circle", "radius": 5}
 ```
 
 ## Union

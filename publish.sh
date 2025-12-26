@@ -13,13 +13,8 @@ else
   # Create tag
   git tag -a v$NEW_VERSION -m "Release v$NEW_VERSION"
   echo "✓ Created tag v$NEW_VERSION"
+
+  # Push the tag to remote
+  git push origin v$NEW_VERSION
+  echo "✓ Pushed tag v$NEW_VERSION to remote"
 fi
-
-# Push the tag to remote
-git push origin v$NEW_VERSION
-echo "✓ Pushed tag v$NEW_VERSION to remote"
-
-# List the tag to verify
-echo ""
-echo "Published tag:"
-git show v$NEW_VERSION --no-patch

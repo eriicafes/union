@@ -31,8 +31,26 @@ type CustomFieldNamesShape struct {
 	Rectangle *Rectangle `variant:"rectangle"`
 }
 
-func (s CustomFieldNamesShape) TaggedFieldNames() (variant, value string) {
+func (s CustomFieldNamesShape) JSONDiscriminator() (string, string) {
 	return "kind", "data"
+}
+
+type CustomVariantNameShape struct {
+	Circle    *Circle    `variant:"circle"`
+	Rectangle *Rectangle `variant:"rectangle"`
+}
+
+func (s CustomVariantNameShape) JSONDiscriminator() (string, string) {
+	return "kind", ""
+}
+
+type CustomValueNameShape struct {
+	Circle    *Circle    `variant:"circle"`
+	Rectangle *Rectangle `variant:"rectangle"`
+}
+
+func (s CustomValueNameShape) JSONDiscriminator() (string, string) {
+	return "", "data"
 }
 
 type NonPointerShape struct {
@@ -55,6 +73,14 @@ type DuplicateVariantShape struct {
 	Circle1 *Circle `variant:"circle"`
 	Circle2 *Circle `variant:"circle"`
 }
+
+type FlatShape struct {
+	Circle    *Circle    `variant:"circle"`
+	Rectangle *Rectangle `variant:"rectangle"`
+	Triangle  *Triangle  `variant:"triangle"`
+}
+
+func (s FlatShape) JSONDiscriminator() string { return "type" }
 
 func TestGetValue(t *testing.T) {
 	tests := []struct {
@@ -155,6 +181,33 @@ func TestMarshalJSON(t *testing.T) {
 			expected: `{"type":"triangle","value":{"base":8,"height":4}}`,
 		},
 		{
+			name: "marshals flat circle variant",
+			shape: TaggedUnion[FlatShape]{
+				Value: FlatShape{
+					Circle: &Circle{Radius: 5.0},
+				},
+			},
+			expected: `{"radius":5,"type":"circle"}`,
+		},
+		{
+			name: "marshals flat rectangle variant",
+			shape: TaggedUnion[FlatShape]{
+				Value: FlatShape{
+					Rectangle: &Rectangle{Width: 10, Height: 5},
+				},
+			},
+			expected: `{"height":5,"type":"rectangle","width":10}`,
+		},
+		{
+			name: "marshals flat triangle variant",
+			shape: TaggedUnion[FlatShape]{
+				Value: FlatShape{
+					Triangle: &Triangle{Base: 8, Height: 4},
+				},
+			},
+			expected: `{"base":8,"height":4,"type":"triangle"}`,
+		},
+		{
 			name:        "returns error when no variant is set",
 			shape:       TaggedUnion[Shape]{},
 			expectErr:   true,
@@ -179,6 +232,24 @@ func TestMarshalJSON(t *testing.T) {
 				},
 			},
 			expected: `{"data":{"radius":5},"kind":"circle"}`,
+		},
+		{
+			name: "marshals with custom variant name",
+			shape: TaggedUnion[CustomVariantNameShape]{
+				Value: CustomVariantNameShape{
+					Circle: &Circle{Radius: 5.0},
+				},
+			},
+			expected: `{"kind":"circle","value":{"radius":5}}`,
+		},
+		{
+			name: "marshals with custom value name",
+			shape: TaggedUnion[CustomValueNameShape]{
+				Value: CustomValueNameShape{
+					Circle: &Circle{Radius: 5.0},
+				},
+			},
+			expected: `{"data":{"radius":5},"type":"circle"}`,
 		},
 		{
 			name: "marshals non-pointer variant",
@@ -265,6 +336,24 @@ func TestUnmarshalJSON(t *testing.T) {
 			expected: Triangle{Base: 8, Height: 4},
 		},
 		{
+			name:     "unmarshals flat circle variant",
+			shape:    &TaggedUnion[FlatShape]{},
+			jsonData: `{"type":"circle","radius":5}`,
+			expected: Circle{Radius: 5.0},
+		},
+		{
+			name:     "unmarshals flat rectangle variant",
+			shape:    &TaggedUnion[FlatShape]{},
+			jsonData: `{"type":"rectangle","width":10,"height":5}`,
+			expected: Rectangle{Width: 10, Height: 5},
+		},
+		{
+			name:     "unmarshals flat triangle variant",
+			shape:    &TaggedUnion[FlatShape]{},
+			jsonData: `{"type":"triangle","base":8,"height":4}`,
+			expected: Triangle{Base: 8, Height: 4},
+		},
+		{
 			name:        "returns error for unknown variant",
 			shape:       &TaggedUnion[Shape]{},
 			jsonData:    `{"type":"hexagon","value":{"sides":6}}`,
@@ -286,6 +375,20 @@ func TestUnmarshalJSON(t *testing.T) {
 			expectedErr: "missing value field: value",
 		},
 		{
+			name:        "returns error for flat unknown variant",
+			shape:       &TaggedUnion[FlatShape]{},
+			jsonData:    `{"type":"hexagon","sides":6}`,
+			expectErr:   true,
+			expectedErr: "unknown variant: hexagon",
+		},
+		{
+			name:        "returns error for flat missing variant field",
+			shape:       &TaggedUnion[FlatShape]{},
+			jsonData:    `{"radius":5}`,
+			expectErr:   true,
+			expectedErr: "missing variant field: type",
+		},
+		{
 			name:      "returns error for malformed JSON",
 			shape:     &TaggedUnion[Shape]{},
 			jsonData:  `{invalid json}`,
@@ -295,6 +398,18 @@ func TestUnmarshalJSON(t *testing.T) {
 			name:     "unmarshals with custom field names",
 			shape:    &TaggedUnion[CustomFieldNamesShape]{},
 			jsonData: `{"kind":"circle","data":{"radius":5}}`,
+			expected: Circle{Radius: 5.0},
+		},
+		{
+			name:     "unmarshals with custom variant name",
+			shape:    &TaggedUnion[CustomVariantNameShape]{},
+			jsonData: `{"kind":"circle","value":{"radius":5}}`,
+			expected: Circle{Radius: 5.0},
+		},
+		{
+			name:     "unmarshals with custom value name",
+			shape:    &TaggedUnion[CustomValueNameShape]{},
+			jsonData: `{"type":"circle","data":{"radius":5}}`,
 			expected: Circle{Radius: 5.0},
 		},
 		{

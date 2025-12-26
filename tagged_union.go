@@ -29,13 +29,22 @@
 // The `variant` struct tag specifies the variant name in JSON. If no tag is provided,
 // the field name is used (e.g., "Circle" instead of "circle").
 //
-// Custom field names can be specified by implementing TaggedFieldNames():
+// Custom field names can be specified by implementing JSONDiscriminator():
 //
-//	func (s Shape) TaggedFieldNames() (variant, value string) {
+//	func (s Shape) JSONDiscriminator() (string, string) {
 //	    return "kind", "data"
 //	}
 //
 //	// Marshals to: {"kind": "circle", "data": {...}}
+//
+// For a flat representation (variant fields merged into the top-level object),
+// implement JSONDiscriminator() returning a single string:
+//
+//	func (s Shape) JSONDiscriminator() string {
+//	    return "kind"
+//	}
+//
+//	// Marshals to: {"kind": "circle", "radius": 5.0}
 //
 // # Union
 //
@@ -79,13 +88,23 @@ import (
 type TaggedUnion[Spec any] struct{ Value Spec }
 
 // fieldNames returns the names of the variant and value fields to use in JSON marshaling.
-// It checks if the Spec type implements a TaggedFieldNames() method and uses those names,
-// otherwise defaults to "type" and "value".
+// It checks if the Spec type implements JSONDiscriminator() string for flat representation (value is ""),
+// then JSONDiscriminator() (string, string) for custom envelope names, otherwise defaults to "type" and "value".
 func (u *TaggedUnion[Spec]) fieldNames() (variant, value string) {
-	if tu, ok := any(u.Value).(interface {
-		TaggedFieldNames() (variant, value string)
-	}); ok {
-		return tu.TaggedFieldNames()
+	if tf, ok := any(u.Value).(interface{ JSONDiscriminator() string }); ok {
+		if name := tf.JSONDiscriminator(); name != "" {
+			return name, ""
+		}
+	}
+	if tu, ok := any(u.Value).(interface{ JSONDiscriminator() (string, string) }); ok {
+		variant, value = tu.JSONDiscriminator()
+		if variant == "" {
+			variant = "type"
+		}
+		if value == "" {
+			value = "value"
+		}
+		return variant, value
 	}
 	return "type", "value"
 }
@@ -160,11 +179,27 @@ func (u TaggedUnion[Spec]) MarshalJSON() ([]byte, error) {
 	}
 
 	variantField, valueField := u.fieldNames()
-	out := map[string]any{
-		variantField: variant,
-		valueField:   value,
+	if valueField != "" {
+		out := map[string]any{
+			variantField: variant,
+			valueField:   value,
+		}
+		return json.Marshal(out)
 	}
 
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	variantJSON, err := json.Marshal(variant)
+	if err != nil {
+		return nil, err
+	}
+	out[variantField] = variantJSON
 	return json.Marshal(out)
 }
 
@@ -196,17 +231,28 @@ func (u *TaggedUnion[Spec]) UnmarshalJSON(data []byte) error {
 	}
 
 	variantField, valueField := u.fieldNames()
-	rawType, ok := raw[variantField]
+	rawVariant, ok := raw[variantField]
 	if !ok {
 		return errors.New("missing variant field: " + variantField)
 	}
-	rawValue, ok := raw[valueField]
-	if !ok {
-		return errors.New("missing value field: " + valueField)
+
+	var rawValue json.RawMessage
+	if valueField != "" {
+		rawValue, ok = raw[valueField]
+		if !ok {
+			return errors.New("missing value field: " + valueField)
+		}
+	} else {
+		delete(raw, variantField)
+		payload, err := json.Marshal(raw)
+		if err != nil {
+			return err
+		}
+		rawValue = payload
 	}
 
 	var variant string
-	if err := json.Unmarshal(rawType, &variant); err != nil {
+	if err := json.Unmarshal(rawVariant, &variant); err != nil {
 		return err
 	}
 
