@@ -1,5 +1,0 @@
----
-"union": major
----
-
-Stable release
