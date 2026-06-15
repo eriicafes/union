@@ -82,6 +82,17 @@ type FlatShape struct {
 
 func (s FlatShape) JSONDiscriminator() string { return "type" }
 
+type ConflictingFlatShape struct {
+	Circle *ConflictingCircle `variant:"circle"`
+}
+
+func (s ConflictingFlatShape) JSONDiscriminator() string { return "type" }
+
+type ConflictingCircle struct {
+	Type   string  `json:"type"`
+	Radius float64 `json:"radius"`
+}
+
 func TestGetValue(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -206,6 +217,16 @@ func TestMarshalJSON(t *testing.T) {
 				},
 			},
 			expected: `{"base":8,"height":4,"type":"triangle"}`,
+		},
+		{
+			name: "returns error when flat variant field conflicts with discriminator",
+			shape: TaggedUnion[ConflictingFlatShape]{
+				Value: ConflictingFlatShape{
+					Circle: &ConflictingCircle{Type: "filled", Radius: 5.0},
+				},
+			},
+			expectErr:   true,
+			expectedErr: "variant field conflicts with discriminator: type",
 		},
 		{
 			name:        "returns error when no variant is set",

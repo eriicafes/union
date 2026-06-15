@@ -90,6 +90,9 @@ func (u Union[Spec]) MarshalJSON() ([]byte, error) {
 //   - The Spec type is not a struct
 //   - No field successfully unmarshals to a non-zero value
 func (u *Union[Spec]) UnmarshalJSON(data []byte) error {
+	var zero Spec
+	u.Value = zero
+
 	v := reflect.ValueOf(&u.Value).Elem()
 	t := v.Type()
 
@@ -111,11 +114,8 @@ func (u *Union[Spec]) UnmarshalJSON(data []byte) error {
 			continue
 		}
 
-		// Check if the unmarshaled value is non-zero
-		if !target.Elem().IsZero() {
-			vf.Set(target.Elem())
-			return nil
-		}
+		vf.Set(target.Elem())
+		return nil
 	}
 
 	return errors.New("no field matched")

@@ -195,6 +195,9 @@ func (u TaggedUnion[Spec]) MarshalJSON() ([]byte, error) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, err
 	}
+	if _, exists := out[variantField]; exists {
+		return nil, errors.New("variant field conflicts with discriminator: " + variantField)
+	}
 	variantJSON, err := json.Marshal(variant)
 	if err != nil {
 		return nil, err
@@ -218,16 +221,19 @@ func (u TaggedUnion[Spec]) MarshalJSON() ([]byte, error) {
 //   - Multiple struct fields match the same variant (invalid Spec definition)
 //   - The value cannot be unmarshaled into the target field type
 func (u *TaggedUnion[Spec]) UnmarshalJSON(data []byte) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
+	var zero Spec
+	u.Value = zero
 
 	v := reflect.ValueOf(&u.Value).Elem()
 	t := v.Type()
 
 	if t.Kind() != reflect.Struct {
 		return errors.New("spec must be a struct")
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
 
 	variantField, valueField := u.fieldNames()
